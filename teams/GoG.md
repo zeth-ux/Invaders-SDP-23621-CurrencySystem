@@ -44,3 +44,5 @@ Our team is responsible for designing and managing the game's currency system. T
 - Item System: Requires item prices and purchase requests to validate and deduct currency.
 - Level Design System: Requires level completion and difficulty information to calculate level bonuses and reward scaling.
 - Gameplay HUD & UI: Requires currency balance updates to display coins and diamonds during gameplay.
+
+- test test
