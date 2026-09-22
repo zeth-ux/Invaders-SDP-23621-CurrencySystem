@@ -46,3 +46,4 @@ Our team is responsible for designing and managing the game's currency system. T
 - Gameplay HUD & UI: Requires currency balance updates to display coins and diamonds during gameplay.
 
 - test test
+- pr test
