@@ -2,6 +2,8 @@ package screen;
 
 import java.awt.event.KeyEvent;
 
+import engine.CurrencyManager;
+
 /**
  * Implements the shop screen.
  * Placeholder only: currency, items and purchases are added by the teams that own them.
@@ -52,6 +54,8 @@ public class ShopScreen extends Screen {
 	private void draw() {
 		this.drawManager.initDrawing(this);
 		this.drawManager.drawScreenTitle(this, MenuItem.SHOP.getTitle());
+		this.drawManager.drawCoinBalance(this, CurrencyManager.getInstance()
+				.getCoins());
 		this.drawManager.completeDrawing(this);
 	}
 }

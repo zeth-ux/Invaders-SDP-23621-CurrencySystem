@@ -4,12 +4,16 @@ import java.awt.event.KeyEvent;
 import java.util.HashSet;
 import java.util.Set;
 
+import engine.CoinDropManager;
 import engine.Cooldown;
 import engine.Core;
+import engine.CurrencyManager;
 import engine.GameSettings;
 import engine.GameState;
 import entity.Bullet;
 import entity.BulletPool;
+import entity.Coin;
+import entity.CoinPool;
 import entity.EnemyShip;
 import entity.EnemyShipFormation;
 import entity.Entity;
@@ -37,6 +41,10 @@ public class GameScreen extends Screen {
 	private static final int SCREEN_CHANGE_INTERVAL = 1500;
 	/** Height of the interface separation line. */
 	private static final int SEPARATION_LINE_HEIGHT = 40;
+	/** Coins awarded when a regular enemy's drop chance succeeds. */
+	private static final int COIN_VALUE = 1;
+	/** Coins guaranteed when the special bonus (red) ship is destroyed. */
+	private static final int BONUS_COIN_VALUE = 5;
 
 	/** Current game difficulty settings. */
 	private GameSettings gameSettings;
@@ -56,6 +64,12 @@ public class GameScreen extends Screen {
 	private Cooldown screenFinishedCooldown;
 	/** Set of all bullets fired by on screen ships. */
 	private Set<Bullet> bullets;
+	/** Set of coins currently dropped and falling on screen. */
+	private Set<Coin> coins;
+	/** Decides, with a low, configurable chance, whether a kill drops a
+	 * coin. Kept a chance instead of a guaranteed drop so currency income
+	 * doesn't scale 1:1 with kills and blow up the game's economy. */
+	private CoinDropManager coinDropManager;
 	/** Current score. */
 	private int score;
 	/** Player lives left. */
@@ -120,6 +134,8 @@ public class GameScreen extends Screen {
 				.getCooldown(BONUS_SHIP_EXPLOSION);
 		this.screenFinishedCooldown = Core.getCooldown(SCREEN_CHANGE_INTERVAL);
 		this.bullets = new HashSet<Bullet>();
+		this.coins = new HashSet<Coin>();
+		this.coinDropManager = new CoinDropManager();
 
 		// Special input delay / countdown.
 		this.gameStartTime = System.currentTimeMillis();
@@ -196,6 +212,7 @@ public class GameScreen extends Screen {
 		}
 
 		manageCollisions();
+		updateCoins();
 		cleanBullets();
 		draw();
 
@@ -229,9 +246,15 @@ public class GameScreen extends Screen {
 			drawManager.drawEntity(bullet, bullet.getPositionX(),
 					bullet.getPositionY());
 
+		for (Coin coin : this.coins)
+			drawManager.drawCoin(coin, coin.getPositionX(),
+					coin.getPositionY());
+
 		// Interface.
 		drawManager.drawScore(this, this.score);
 		drawManager.drawLives(this, this.lives);
+		drawManager.drawCoinBalance(this, CurrencyManager.getInstance()
+				.getCoins());
 		drawManager.drawHorizontalLine(this, SEPARATION_LINE_HEIGHT - 1);
 
 		// Countdown to game start.
@@ -288,6 +311,7 @@ public class GameScreen extends Screen {
 						this.score += enemyShip.getPointValue();
 						this.shipsDestroyed++;
 						this.enemyShipFormation.destroy(enemyShip);
+						maybeDropCoin(enemyShip);
 						recyclable.add(bullet);
 					}
 				if (this.enemyShipSpecial != null
@@ -297,11 +321,72 @@ public class GameScreen extends Screen {
 					this.shipsDestroyed++;
 					this.enemyShipSpecial.destroy();
 					this.enemyShipSpecialExplosionCooldown.reset();
+					dropBonusCoins(this.enemyShipSpecial);
 					recyclable.add(bullet);
 				}
 			}
 		this.bullets.removeAll(recyclable);
 		BulletPool.recycle(recyclable);
+	}
+
+	/**
+	 * Rolls the coin-drop chance for a just-destroyed regular enemy and, if
+	 * it succeeds, spawns a coin at its position. A coin does not drop on
+	 * every kill on purpose: see {@link CoinDropManager} for why.
+	 * 
+	 * @param destroyedEnemy
+	 *            Enemy ship that was just destroyed.
+	 */
+	private void maybeDropCoin(final EnemyShip destroyedEnemy) {
+		if (this.coinDropManager.rollForDrop())
+			this.coins.add(CoinPool.getCoin(
+					destroyedEnemy.getPositionX()
+							+ destroyedEnemy.getWidth() / 2,
+					destroyedEnemy.getPositionY()
+							+ destroyedEnemy.getHeight() / 2,
+					COIN_VALUE));
+	}
+
+	/**
+	 * Always drops coins when the special bonus ship is destroyed, worth
+	 * more than a regular coin. This ship is already rare and already
+	 * worth far more score than a regular kill (see
+	 * {@link EnemyShip#EnemyShip()}), so an extra, guaranteed payout here
+	 * mirrors that without touching the base drop odds everyone else
+	 * balances around.
+	 * 
+	 * @param destroyedEnemy
+	 *            The special/bonus enemy ship that was just destroyed.
+	 */
+	private void dropBonusCoins(final EnemyShip destroyedEnemy) {
+		this.coins.add(CoinPool.getCoin(
+				destroyedEnemy.getPositionX() + destroyedEnemy.getWidth() / 2,
+				destroyedEnemy.getPositionY() + destroyedEnemy.getHeight()
+						/ 2,
+				BONUS_COIN_VALUE));
+	}
+
+	/**
+	 * Moves falling coins, hands collected coins to the CurrencyManager,
+	 * and recycles coins that reach the bottom of the screen uncollected.
+	 */
+	private void updateCoins() {
+		Set<Coin> recyclable = new HashSet<Coin>();
+		for (Coin coin : this.coins) {
+			coin.update();
+
+			if (!this.levelFinished && !this.ship.isDestroyed()
+					&& checkCollision(coin, this.ship)) {
+				CurrencyManager.getInstance().addCoins(coin.getValue());
+				recyclable.add(coin);
+				this.logger.info("Coin collected, balance: "
+						+ CurrencyManager.getInstance().getCoins());
+			} else if (coin.getPositionY() > this.height) {
+				recyclable.add(coin);
+			}
+		}
+		this.coins.removeAll(recyclable);
+		CoinPool.recycle(recyclable);
 	}
 
 	/**

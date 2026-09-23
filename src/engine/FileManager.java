@@ -37,6 +37,8 @@ public final class FileManager {
 	private static Logger logger;
 	/** Max number of high scores. */
 	private static final int MAX_SCORES = 7;
+	/** Name of the file the player's coin balance is persisted to. */
+	private static final String COINS_FILE_NAME = "coins";
 
 	/**
 	 * private constructor.
@@ -267,5 +269,95 @@ public final class FileManager {
 			if (bufferedWriter != null)
 				bufferedWriter.close();
 		}
+	}
+
+	/**
+	 * Loads the player's persisted coin balance from disk. This is the
+	 * currency earned from coin drops and is meant to survive between game
+	 * launches (unlike score, which resets every run) and to be shared
+	 * between every screen that reads or spends it, e.g. the in-game HUD
+	 * and the shop.
+	 *
+	 * @return Saved coin balance, or 0 if there is no save file yet or it
+	 *         cannot be read.
+	 */
+	public int loadCoins() {
+		BufferedReader bufferedReader = null;
+
+		try {
+			File coinsFile = new File(coinsFilePath());
+			bufferedReader = new BufferedReader(new InputStreamReader(
+					new FileInputStream(coinsFile), Charset.forName("UTF-8")));
+
+			String line = bufferedReader.readLine();
+			logger.info("Loading user coin balance.");
+			return line == null ? 0 : Integer.parseInt(line.trim());
+		} catch (FileNotFoundException e) {
+			// No wallet yet, e.g. first launch: start from zero.
+			logger.info("No coin balance file found, starting from 0.");
+			return 0;
+		} catch (NumberFormatException e) {
+			logger.warning("Coin balance file was corrupt, starting from 0.");
+			return 0;
+		} catch (IOException e) {
+			logger.warning("Failed to load coin balance, starting from 0.");
+			return 0;
+		} finally {
+			try {
+				if (bufferedReader != null)
+					bufferedReader.close();
+			} catch (IOException e) {
+				// Nothing to do if closing the reader fails.
+			}
+		}
+	}
+
+	/**
+	 * Saves the player's coin balance to disk, next to the high scores
+	 * file, so it persists across game launches.
+	 *
+	 * @param coins
+	 *            Current coin balance to persist.
+	 */
+	public void saveCoins(final int coins) {
+		BufferedWriter bufferedWriter = null;
+
+		try {
+			File coinsFile = new File(coinsFilePath());
+			if (!coinsFile.exists())
+				coinsFile.createNewFile();
+
+			bufferedWriter = new BufferedWriter(new OutputStreamWriter(
+					new FileOutputStream(coinsFile), Charset.forName("UTF-8")));
+			bufferedWriter.write(Integer.toString(coins));
+			bufferedWriter.newLine();
+		} catch (IOException e) {
+			logger.warning("Failed to save coin balance: " + e.getMessage());
+		} finally {
+			try {
+				if (bufferedWriter != null)
+					bufferedWriter.close();
+			} catch (IOException e) {
+				// Nothing to do if closing the writer fails.
+			}
+		}
+	}
+
+	/**
+	 * @return Absolute path of the coin balance save file, in the same
+	 *         directory as the running jar (mirrors how high scores are
+	 *         located).
+	 * @throws IOException
+	 *             In case the running jar's path cannot be resolved.
+	 */
+	private String coinsFilePath() throws IOException {
+		String jarPath = FileManager.class.getProtectionDomain()
+				.getCodeSource().getLocation().getPath();
+		jarPath = URLDecoder.decode(jarPath, "UTF-8");
+
+		String path = new File(jarPath).getParent();
+		path += File.separator;
+		path += COINS_FILE_NAME;
+		return path;
 	}
 }

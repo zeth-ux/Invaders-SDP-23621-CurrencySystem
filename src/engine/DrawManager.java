@@ -14,6 +14,7 @@ import java.util.logging.Logger;
 
 import screen.MenuItem;
 import screen.Screen;
+import entity.Coin;
 import entity.Entity;
 import entity.Ship;
 
@@ -195,6 +196,57 @@ public final class DrawManager {
 				if (image[i][j])
 					backBufferGraphics.drawRect(positionX + i * 2, positionY
 							+ j * 2, 1, 1);
+	}
+
+	/**
+	 * Draws a dropped coin. Coins are drawn as a simple filled shape rather
+	 * than through the shared sprite atlas, so this feature doesn't require
+	 * touching the pixel-art resource file used by every other team.
+	 * 
+	 * @param coin
+	 *            Coin to be drawn.
+	 * @param positionX
+	 *            Coordinates for the left side of the coin.
+	 * @param positionY
+	 *            Coordinates for the upper side of the coin.
+	 */
+	public void drawCoin(final Coin coin, final int positionX,
+			final int positionY) {
+		backBufferGraphics.setColor(coin.getColor());
+		backBufferGraphics.fillOval(positionX, positionY, coin.getWidth(),
+				coin.getHeight());
+	}
+
+	/**
+	 * Draws the player's coin balance as a small coin icon followed by the
+	 * amount, centered along the top of the screen. Shared by the in-game
+	 * HUD and the shop screen so both read from the same
+	 * {@code engine.CurrencyManager} balance and look consistent.
+	 * 
+	 * @param screen
+	 *            Screen to draw on.
+	 * @param coins
+	 *            Current coin balance to display.
+	 */
+	public void drawCoinBalance(final Screen screen, final int coins) {
+		final int iconDiameter = 14;
+		final int iconTextGap = 6;
+		final int iconTop = 10;
+		final int textBaseline = 25;
+
+		backBufferGraphics.setFont(fontRegular);
+		String balanceString = Integer.toString(coins);
+		int textWidth = fontRegularMetrics.stringWidth(balanceString);
+		int totalWidth = iconDiameter + iconTextGap + textWidth;
+		int startX = (screen.getWidth() - totalWidth) / 2;
+
+		backBufferGraphics.setColor(Color.YELLOW);
+		backBufferGraphics.fillOval(startX, iconTop, iconDiameter,
+				iconDiameter);
+
+		backBufferGraphics.setColor(Color.WHITE);
+		backBufferGraphics.drawString(balanceString, startX + iconDiameter
+				+ iconTextGap, textBaseline);
 	}
 
 	/**
